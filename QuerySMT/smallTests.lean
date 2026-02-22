@@ -7,7 +7,7 @@ set_option auto.smt.solver.name "cvc5"
 set_option auto.smt.dumpHints true
 
 set_option auto.smt.save false
-set_option auto.smt.savepath "/Users/joshClune/Desktop/temp.smt"
+set_option auto.smt.savepath "/Users/sreeram/Desktop/temp.smt"
 
 set_option trace.duper.ignoredUnusableFacts true
 
@@ -26,29 +26,36 @@ set_option auto.getHints.failOnParseError true
 
 -- set_option querySMT.filterHints false
 
+-- set_option pp.universes true in
+set_option pp.explicit true in
+#check -Int.ofNat 1 * 5
+-- this one shouldn't be bad
+
+set_option pp.explicit true in
 example (x y z : Int) : x ≤ y → y ≤ z → x ≤ z := by
   querySMT
 
 example (f : Int → Int) (h1 : ∀ x y, f x = f y → x = y)
 (h2 : ∃ x, ∀ y, f x ≤ f y) : ∃ x, ∀ y, x ≠ y → f x < f y := by
-  apply @Classical.byContradiction
-  intro negGoal
-  skolemizeAll
-  have smtLemma0 : (∀ (_i_0 : ℤ), f sk0 ≤ f _i_0) → ∀ (_i_0 : ℤ), ¬f sk0 + -Int.ofNat 1 * f _i_0 ≥ Int.ofNat 1 := by
-    grind
-  have smtLemma1 :
-    (∀ (_i : ℤ),
-        have _let_1 := sk1 _i;
-        ¬(¬_i = _let_1 → f _i < f _let_1)) →
-      ∀ (bv1 : ℤ), f bv1 + -Int.ofNat 1 * f (sk1 bv1) ≥ Int.ofNat 0 :=
-    by grind
-  have smtLemma2 :
-    have _let_1 := f (sk1 sk0);
-    have _let_2 := f sk0;
-    have _let_3 := _let_2 + -Int.ofNat 1 * _let_1;
-    (¬_let_3 ≥ Int.ofNat 0 ∨ _let_2 = _let_1) ∨ _let_3 ≥ Int.ofNat 1 :=
-    by grind
-  duper [h1, h2, negGoal, smtLemma0, smtLemma1, smtLemma2] []
+  querySMT
+  -- apply @Classical.byContradiction
+  -- intro negGoal
+  -- skolemizeAll
+  -- have smtLemma0 : (∀ (_i_0 : ℤ), f sk0 ≤ f _i_0) → ∀ (_i_0 : ℤ), ¬f sk0 + -Int.ofNat 1 * f _i_0 ≥ Int.ofNat 1 := by
+  --   grind
+  -- have smtLemma1 :
+  --   (∀ (_i : ℤ),
+  --       have _let_1 := sk1 _i;
+  --       ¬(¬_i = _let_1 → f _i < f _let_1)) →
+  --     ∀ (bv1 : ℤ), f bv1 + -Int.ofNat 1 * f (sk1 bv1) ≥ Int.ofNat 0 :=
+  --   by grind
+  -- have smtLemma2 :
+  --   have _let_1 := f (sk1 sk0);
+  --   have _let_2 := f sk0;
+  --   have _let_3 := _let_2 + -Int.ofNat 1 * _let_1;
+  --   (¬_let_3 ≥ Int.ofNat 0 ∨ _let_2 = _let_1) ∨ _let_3 ≥ Int.ofNat 1 :=
+  --   by grind
+  -- duper [h1, h2, negGoal, smtLemma0, smtLemma1, smtLemma2] []
   -- OLD OUTPUT
   -- apply @Classical.byContradiction
   -- intro negGoal
@@ -74,22 +81,20 @@ example (f : Int → Int) (h1 : ∀ x y, f x = f y → x = y)
   apply @Classical.byContradiction
   intro negGoal
   skolemizeAll
-  have smtLemma0 : (∀ (_i_0 : Int), f sk0 ≤ f _i_0) →
-    ∀ (_i_0 : Int), ¬f sk0 + -Int.ofNat 1 * f _i_0 ≥ Int.ofNat 1 :=
-    by grind
+  have smtLemma0 : (∀ (_i_0 : ℤ), f sk0 ≤ f _i_0) → ∀ (_i_0 : ℤ), ¬f sk0 + -Int.ofNat 1 * f _i_0 ≥ Int.ofNat 1 := by
+    grind
   have smtLemma1 :
-    (∀ (_i : Int),
+    (∀ (_i : ℤ),
         have _let_1 := sk1 _i;
         ¬(¬_i = _let_1 → f _i < f _let_1)) →
-      ∀ (BOUND_VARIABLE_4962 : Int), f BOUND_VARIABLE_4962 +
-    -Int.ofNat 1 * f (sk1 BOUND_VARIABLE_4962) ≥ Int.ofNat 0 :=
+      ∀ (bv1 : ℤ), f bv1 + -Int.ofNat 1 * f (sk1 bv1) ≥ Int.ofNat 0 :=
     by grind
   have smtLemma2 :
     have _let_1 := f (sk1 sk0);
     have _let_2 := f sk0;
     have _let_3 := _let_2 + -Int.ofNat 1 * _let_1;
-    (¬_let_3 ≥ Int.ofNat 0 ∨ _let_2 = _let_1) ∨
-    _let_3 ≥ Int.ofNat 1 := by grind
+    (¬_let_3 ≥ Int.ofNat 0 ∨ _let_2 = _let_1) ∨ _let_3 ≥ Int.ofNat 1 :=
+    by grind
   duper [h1, h2, negGoal, smtLemma0, smtLemma1, smtLemma2] []
 
 example (f : Int → Int) (h1 : ∀ x y, f x = f y → x = y)

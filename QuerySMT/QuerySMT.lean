@@ -505,7 +505,7 @@ def isAdditionalFact : CoreM (Term → Bool) := do
   let additionalFacts ← getAdditionalFacts
   return additionalFacts.contains
 
--- currently uses "bvarN", can change
+-- currently uses "bvN", can change
 def cleanName (old : Name) : StateM Nat Name := do
   if old.toString.startsWith "BOUND_VARIABLE" then
     let idx ← get
@@ -538,7 +538,7 @@ def renameBvars (e : Expr) : StateM Nat Expr := do
       let newBody ← renameBvars body
       return .letE newName newType newVal newBody nonDep
 
-  -- For standard applications and metadata, we just recurse deeper
+  -- For other stuff, just recurse deeper
   | .app fn arg =>
       let newFn ← renameBvars fn
       let newArg ← renameBvars arg
@@ -556,9 +556,47 @@ def renameBvars (e : Expr) : StateM Nat Expr := do
 
 def renameHelper (prop: Expr) : Expr := (renameBvars prop).run' 1
 
-def preprocess (props: List Expr) : List Expr :=
-  List.map renameHelper props
-  -- More here later
+def removeHaveStatements (e : Expr) : TacticM Expr := do
+  match e with
+  | .forallE name type body bi =>
+      -- if name.toString.startsWith "_let_" then trace[querySMT.debug] "hello"
+      let newType ← removeHaveStatements type
+      let newBody ← removeHaveStatements body
+      return .forallE name newType newBody bi
+
+  | .lam name type body bi =>
+      -- if name.toString.startsWith "_let_" then trace[querySMT.debug] "hi"
+      let newType ← removeHaveStatements type
+      let newBody ← removeHaveStatements body
+      return .lam name newType newBody bi
+
+  | .letE name type val body nonDep =>
+      let newBody ← removeHaveStatements body
+      -- if name.toString.startsWith "_let_" then trace[querySMT.debug] "what"
+
+      return newBody.instantiate1 val
+
+  | .app fn arg =>
+      return .app fn arg
+
+  | .mdata data expr =>
+      return .mdata data expr
+
+  | .proj typeName idx expr =>
+      return .proj typeName idx expr
+
+  | _ => return e
+
+-- def zetaReduce (prop : Expr) : TacticM Expr := do
+--   Meta.zetaReduce prop
+
+def preprocess (props: List Expr) : TacticM (List Expr) := do
+  let renamedProps := List.map renameHelper props
+
+  let zetaProps ← renamedProps.mapM removeHaveStatements
+
+  -- more here
+  return zetaProps
 
 def evalQuerySMTWithArgs (stxRef : Syntax) (facts : Syntax.TSepArray [`QuerySMT.querySMTStar, `term] ",")
   (configOptions : Syntax.TSepArray `QuerySMT.configOption ",") : TacticM Unit := withMainContext do
@@ -649,7 +687,11 @@ def evalQuerySMTWithArgs (stxRef : Syntax) (facts : Syntax.TSepArray [`QuerySMT.
         let (preprocessFacts, theoryLemmas, _instantiations, computationLemmas, polynomialLemmas, rewriteFacts) := allSMTLemmas
 
         -- preprocessing to make output cleaner
-        let preprocessFacts := preprocess preprocessFacts
+        let preprocessFacts ← preprocess preprocessFacts
+        let theoryLemmas ← preprocess theoryLemmas
+        let _instantiations ← preprocess _instantiations
+        let computationLemmas ← preprocess computationLemmas
+        let polynomialLemmas ← preprocess polynomialLemmas
 
         let smtLemmas :=
           if ← getIgnoreHintsM then

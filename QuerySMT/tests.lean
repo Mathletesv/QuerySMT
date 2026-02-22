@@ -7,7 +7,7 @@ set_option auto.smt.solver.name "cvc5"
 set_option auto.smt.dumpHints true
 
 set_option auto.smt.save false
-set_option auto.smt.savepath "/Users/joshClune/Desktop/temp.smt"
+set_option auto.smt.savepath "/Users/sreeram/Desktop/temp.smt"
 
 set_option trace.duper.ignoredUnusableFacts true
 

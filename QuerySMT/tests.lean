@@ -25,12 +25,38 @@ set_option duper.collectDatatypes true
 set_option auto.getHints.failOnParseError true
 
 set_option querySMT.filterHints false
+set_option querySMT.filterRedundancies false
 
 example (x y z : Int) : x ≤ y → y ≤ z → x ≤ z := by
   querySMT
 
+example (x y z : Int) : x ≤ y → y ≤ z → x ≤ z := by
+  intros h0 h1
+  apply @Classical.byContradiction
+  intro negGoal
+  have smtLemma0 : x ≤ y → ¬x + -1 * y ≥ 1 := by grind
+  have smtLemma1 : y ≤ z → z + -1 * y ≥ 0 := by grind
+  have smtLemma2 : ¬x ≤ z → x + -1 * z ≥ 1 := by grind
+  have smtLemma3 :
+    x + -1 * z ≥ 1 ∧ z + -1 * y ≥ 0 → x + -1 * y ≥ 1 := by
+    grind
+  duper [h0, h1, negGoal, smtLemma0, smtLemma1, smtLemma2, smtLemma3] []
+
 example (x y z : Nat) : x ≤ y → y ≤ z → x ≤ z := by
   querySMT
+
+example (x y z : Nat) : x ≤ y → y ≤ z → x ≤ z := by
+  intros h0 h1
+  apply @Classical.byContradiction
+  intro negGoal
+  have smtLemma0 : Int.ofNat x ≤ Int.ofNat y → ¬Int.ofNat x + -1 * Int.ofNat y ≥ 1 := by grind
+  have smtLemma1 : ¬Int.ofNat x ≤ Int.ofNat z → Int.ofNat x + -1 * Int.ofNat z ≥ 1 := by grind
+  have smtLemma2 : Int.ofNat y ≤ Int.ofNat z → Int.ofNat z + -1 * Int.ofNat y ≥ 0 := by grind
+  have smtLemma3 :
+    Int.ofNat x + -1 * Int.ofNat z ≥ 1 ∧ Int.ofNat z + -1 * Int.ofNat y ≥ 0 →
+      Int.ofNat x + -1 * Int.ofNat y ≥ 1 :=
+    by grind
+  duper [h0, h1, negGoal, smtLemma0, smtLemma1, smtLemma2, smtLemma3] [Int.ofNat_le]
 
 example (x z : Nat) (y : Int) : x ≤ y → y ≤ z → x ≤ z := by
   querySMT
@@ -212,6 +238,7 @@ example (l : List Int) (contains : List Int → Int → Prop)
   (h2 : ∃ x : Int, ∃ y : Int, contains l x ∧ contains l y ∧ x + y < 0) : False := by
   querySMT
 
+-- Times out
 example (l : List Int) (h1 : ∀ x : Int, l.contains x → x ≥ 0)
   (h2 : ∃ x : Int, ∃ y : Int, l.contains x ∧ l.contains y ∧ x + y < 0) : False := by
   querySMT

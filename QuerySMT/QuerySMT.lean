@@ -551,7 +551,6 @@ def renameBvars (e : Expr) : StateM Nat Expr := do
       let newBody ← renameBvars body
       return .letE newName newType newVal newBody nonDep
 
-  -- For other stuff, just recurse deeper
   | .app fn arg =>
       let newFn ← renameBvars fn
       let newArg ← renameBvars arg
@@ -572,36 +571,20 @@ def renameHelper (prop: Expr) : Expr := (renameBvars prop).run' 1
 def removeHaveStatements (e : Expr) : TacticM Expr := do
   match e with
   | .forallE name type body bi =>
-      -- if name.toString.startsWith "_let_" then trace[querySMT.debug] "hello"
       let newType ← removeHaveStatements type
       let newBody ← removeHaveStatements body
       return .forallE name newType newBody bi
 
   | .lam name type body bi =>
-      -- if name.toString.startsWith "_let_" then trace[querySMT.debug] "hi"
       let newType ← removeHaveStatements type
       let newBody ← removeHaveStatements body
       return .lam name newType newBody bi
 
-  | .letE name type val body nonDep =>
+  | .letE _ _ val body _ =>
       let newBody ← removeHaveStatements body
-      -- if name.toString.startsWith "_let_" then trace[querySMT.debug] "what"
-
       return newBody.instantiate1 val
 
-  | .app fn arg =>
-      return .app fn arg
-
-  | .mdata data expr =>
-      return .mdata data expr
-
-  | .proj typeName idx expr =>
-      return .proj typeName idx expr
-
   | _ => return e
-
--- def zetaReduce (prop : Expr) : TacticM Expr := do
---   Meta.zetaReduce prop
 
 def removeRedundantHypotheses (e : Expr) : TacticM Expr := do
   match e with
@@ -609,45 +592,44 @@ def removeRedundantHypotheses (e : Expr) : TacticM Expr := do
       let ctx ← Lean.MonadLCtx.getLCtx -- get the local context.
       let remove ← ctx.anyM fun decl: Lean.LocalDecl => do
         let declType := decl.type
-        if ← Meta.isDefEq declType type then return true else return false
+        if ← Meta.isDefEq declType type then 
+        trace[querySMT.debug] "ctx type: {declType}\ntype removed: {type}"
+        return true else return false
       if remove then return body else return .forallE name type body bi
-
-  | .lam name type body bi =>
-      return .lam name type body bi
-
-  | .letE name type val body nonDep =>
-      return .letE name type val body nonDep
-
-  | .app fn arg =>
-      return .app fn arg
-
-  | .mdata data expr =>
-      return .mdata data expr
-
-  | .proj typeName idx expr =>
-      return .proj typeName idx expr
 
   | _ => return e
 
 def replaceIntOfNat (e : Expr) : TacticM Expr :=
-  Lean.Meta.transform e (post := fun e => do
+  Lean.Core.transform e (post := fun e => do
     match e with
-    | .app (.const ``Int.ofNat _) (.lit (.natVal n)) => return .done (.lit (.natVal n))
+    | .app (.const ``Int.ofNat _) (.lit (.natVal n)) => 
+      let type := mkConst ``Int
+      let val := mkRawNatLit n
+      let cleanLit ← mkAppOptM ``OfNat.ofNat #[some type, some val, none]
+      return .done cleanLit
+    | .app (.const ``Int.ofNat _) x =>
+      let type := mkConst ``Int
+      try
+        let casted ← mkAppOptM ``Nat.cast #[some type, none, some x]
+        return .done casted
+      catch _ =>
+        return .continue
     | _ => return .continue)
 
 def preprocess (props: List Expr) : TacticM (List Expr) := do
+  -- trace[querySMT.debug] "Before preprocess: {props}" 
   let renamedProps := List.map renameHelper props
 
   let zetaProps ← renamedProps.mapM removeHaveStatements
 
-  let cleaned ← if ← getFilterRedundanciesM then
+  let cleanedProps ← if ← getFilterRedundanciesM then
     zetaProps.mapM removeRedundantHypotheses
   else
     pure zetaProps
 
-  let litProps ← cleaned.mapM replaceIntOfNat 
-  -- more here
-  return litProps
+  let literalProps ← cleanedProps.mapM replaceIntOfNat
+  -- trace[querySMT.debug] "After preprocess: {literalProps}"
+  return literalProps
 
 def evalQuerySMTWithArgs (stxRef : Syntax) (facts : Syntax.TSepArray [`QuerySMT.querySMTStar, `term] ",")
   (configOptions : Syntax.TSepArray `QuerySMT.configOption ",") : TacticM Unit := withMainContext do
@@ -737,7 +719,7 @@ def evalQuerySMTWithArgs (stxRef : Syntax) (facts : Syntax.TSepArray [`QuerySMT.
         let (unsatCoreDerivLeafStrings, selectorInfos, allSMTLemmas) := SMTHints
         let (preprocessFacts, theoryLemmas, _instantiations, computationLemmas, polynomialLemmas, rewriteFacts) := allSMTLemmas
 
-        -- preprocessing to make output cleaner
+        -- Preprocessing to make output cleaner
         let preprocessFacts ← preprocess preprocessFacts
         let theoryLemmas ← preprocess theoryLemmas
         let _instantiations ← preprocess _instantiations

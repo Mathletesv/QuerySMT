@@ -517,7 +517,7 @@ def isAdditionalFact : CoreM (Term → Bool) := do
   let additionalFacts ← getAdditionalFacts
   return additionalFacts.contains
 
--- currently uses "bvN", can change
+-- currently uses "bvN", can change naming
 def cleanName (old : Name) : StateM Nat Name := do
   if old.toString.startsWith "BOUND_VARIABLE" then
     let idx ← get
@@ -586,13 +586,23 @@ def removeHaveStatements (e : Expr) : TacticM Expr := do
 
   | _ => return e
 
+def removeHaveStatementsBetter (e : Expr) : TacticM Expr := do
+  Lean.Meta.transform e (pre := fun e => do
+    match e with
+    | .letE _ _ val body _ =>
+        let newBody ← removeHaveStatements body
+        return .visit (newBody.instantiate1 val)
+
+    | _ => return .continue
+  )
+
 def removeRedundantHypotheses (e : Expr) : TacticM Expr := do
   match e with
   | .forallE name type body bi =>
-      let ctx ← Lean.MonadLCtx.getLCtx -- get the local context.
+      let ctx ← Lean.MonadLCtx.getLCtx
       let remove ← ctx.anyM fun decl: Lean.LocalDecl => do
         let declType := decl.type
-        if ← Meta.isDefEq declType type then 
+        if ← Meta.isDefEq declType type then
         trace[querySMT.debug] "ctx type: {declType}\ntype removed: {type}"
         return true else return false
       if remove then return body else return .forallE name type body bi
@@ -600,9 +610,36 @@ def removeRedundantHypotheses (e : Expr) : TacticM Expr := do
   | _ => return e
 
 def replaceIntOfNat (e : Expr) : TacticM Expr :=
-  Lean.Core.transform e (post := fun e => do
+  Lean.Core.transform e (pre := fun e => do
+    -- trace[querySMT.debug] "WOW: {e}"
     match e with
-    | .app (.const ``Int.ofNat _) (.lit (.natVal n)) => 
+    | .app (.app (.app (.app (.app (.app (.const ``HMul.hMul a) b) c) d) e) lhs) rhs =>
+      trace[querySMT.debug] "hello!: {lhs} AND {rhs}"
+      match lhs, rhs with
+      | .app (.app (.app (.const ``Neg.neg _) _) _) (.app (.const ``Int.ofNat _) (.lit (.natVal n))),
+        .app (.const ``Int.ofNat _) y =>
+        -- reconstruct -n * Int.ofNat y
+        let type := mkConst ``Int
+        let val := mkRawNatLit n
+        let cleanLit ← mkAppOptM ``OfNat.ofNat #[some type, some val, none]
+
+        let intY ← mkAppM ``Int.ofNat #[y]
+        let negLit ← mkAppM ``Neg.neg #[cleanLit]
+        let finalExpr ← mkAppM ``HMul.hMul #[negLit, intY]
+
+        return .done finalExpr
+      | _, _ =>
+        -- Any other multiplication
+        return .continue
+    -- | .app (.app (.app (.app (.app (.app (.const ``HMul.hMul _) _) _) _) _) _)
+    --   -- The right hand side (Int.ofNat y)
+    --   (.app (.const ``Int.ofNat _) x) =>
+    --   trace[querySMT.debug] "multiplied: {x}"
+    --   return .done e
+    -- | .app (.app (.app (.app (.app (.app (.const ``HMul.hMul _) _) _) _) _) _) x =>
+    --   trace[querySMT.debug] "NOOO: {x}"
+    --   return .done e
+    | .app (.const ``Int.ofNat _) (.lit (.natVal n)) =>
       let type := mkConst ``Int
       let val := mkRawNatLit n
       let cleanLit ← mkAppOptM ``OfNat.ofNat #[some type, some val, none]
@@ -617,18 +654,19 @@ def replaceIntOfNat (e : Expr) : TacticM Expr :=
     | _ => return .continue)
 
 def preprocess (props: List Expr) : TacticM (List Expr) := do
-  -- trace[querySMT.debug] "Before preprocess: {props}" 
+  -- trace[querySMT.debug] "Before preprocess: {props}"
   let renamedProps := List.map renameHelper props
 
-  let zetaProps ← renamedProps.mapM removeHaveStatements
+  let zetaProps ← renamedProps.mapM removeHaveStatementsBetter
 
   let cleanedProps ← if ← getFilterRedundanciesM then
     zetaProps.mapM removeRedundantHypotheses
   else
     pure zetaProps
 
+  trace[querySMT.debug] "Before final preprocess: {cleanedProps}"
   let literalProps ← cleanedProps.mapM replaceIntOfNat
-  -- trace[querySMT.debug] "After preprocess: {literalProps}"
+  trace[querySMT.debug] "After preprocess: {literalProps}"
   return literalProps
 
 def evalQuerySMTWithArgs (stxRef : Syntax) (facts : Syntax.TSepArray [`QuerySMT.querySMTStar, `term] ",")

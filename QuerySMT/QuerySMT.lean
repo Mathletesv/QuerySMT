@@ -517,20 +517,29 @@ def isAdditionalFact : CoreM (Term → Bool) := do
   let additionalFacts ← getAdditionalFacts
   return additionalFacts.contains
 
+structure Counter where
+  counter : Nat := 0
+
+abbrev NatTacticM := StateRefT Counter TacticM
+
+def incCounter : NatTacticM Unit := do
+  let idx ← get
+  set { idx with counter := idx.counter + 1 }
+
 -- currently uses "bvN", can change naming
-def cleanName (old : Name) : StateM Nat Name := do
+def cleanName (old : Name) : NatTacticM Name := do
   if old.toString.startsWith "BOUND_VARIABLE" then
     let idx ← get
-    set (idx + 1)
+    set { idx with counter := idx.counter + 1 }
 
-    return (Name.mkSimple "bv").appendAfter s!"{idx}"
+    return (Name.mkSimple "bv").appendAfter s!"{idx.counter}"
   else
     return old
 
 -- Need to figure out which of these to actually update names for
 -- Fixed by just checking for BOUND_VARIABLE but maybe still remove certain cases for efficiency
 -- check for duplicates, problem if name already exists
-def renameBvars (e : Expr) : StateM Nat Expr := do
+def renameBvars (e : Expr) : NatTacticM Expr := do
   match e with
   | .forallE name type body bi =>
       let newName ← cleanName name
@@ -566,32 +575,33 @@ def renameBvars (e : Expr) : StateM Nat Expr := do
 
   | _ => return e
 
-def renameHelper (prop: Expr) : Expr := (renameBvars prop).run' 1
+def renameBvars2 (e : Expr) : NatTacticM Expr := do
+  Lean.Core.transform e (pre := fun e => do
+    match e with
+    | .forallE name type body bi =>
+      let newName ← cleanName name
+      return .continue (some (.forallE newName type body bi))
 
-def removeHaveStatements (e : Expr) : TacticM Expr := do
-  match e with
-  | .forallE name type body bi =>
-      let newType ← removeHaveStatements type
-      let newBody ← removeHaveStatements body
-      return .forallE name newType newBody bi
+    | .lam name type body bi =>
+        let newName ← cleanName name
+        return .continue (some (.lam newName type body bi))
 
-  | .lam name type body bi =>
-      let newType ← removeHaveStatements type
-      let newBody ← removeHaveStatements body
-      return .lam name newType newBody bi
+    | .letE name type val body nonDep =>
+        let newName ← cleanName name
+        return .continue (some (.letE newName type val body nonDep))
 
-  | .letE _ _ val body _ =>
-      let newBody ← removeHaveStatements body
-      return newBody.instantiate1 val
+    | _ => return .continue
+  )
 
-  | _ => return e
+def renameHelper (prop: Expr) : TacticM Expr := do
+  let (prop, _) ← ((renameBvars2 prop).run { counter := 1})
+  return prop
 
 def removeHaveStatementsBetter (e : Expr) : TacticM Expr := do
-  Lean.Meta.transform e (pre := fun e => do
+  Lean.Core.transform e (pre := fun e => do
     match e with
     | .letE _ _ val body _ =>
-        let newBody ← removeHaveStatements body
-        return .visit (newBody.instantiate1 val)
+        return .visit (body.instantiate1 val)
 
     | _ => return .continue
   )
@@ -602,9 +612,7 @@ def removeRedundantHypotheses (e : Expr) : TacticM Expr := do
       let ctx ← Lean.MonadLCtx.getLCtx
       let remove ← ctx.anyM fun decl: Lean.LocalDecl => do
         let declType := decl.type
-        if ← Meta.isDefEq declType type then
-        trace[querySMT.debug] "ctx type: {declType}\ntype removed: {type}"
-        return true else return false
+        return ← Meta.isDefEq declType type
       if remove then return body else return .forallE name type body bi
 
   | _ => return e
@@ -655,19 +663,19 @@ def replaceIntOfNat (e : Expr) : TacticM Expr :=
 
 def preprocess (props: List Expr) : TacticM (List Expr) := do
   -- trace[querySMT.debug] "Before preprocess: {props}"
-  let renamedProps := List.map renameHelper props
+  let props ← props.mapM renameHelper
 
-  let zetaProps ← renamedProps.mapM removeHaveStatementsBetter
+  let props ← props.mapM removeHaveStatementsBetter
 
-  let cleanedProps ← if ← getFilterRedundanciesM then
-    zetaProps.mapM removeRedundantHypotheses
+  let props ← if ← getFilterRedundanciesM then
+    props.mapM removeRedundantHypotheses
   else
-    pure zetaProps
+    pure props
 
-  trace[querySMT.debug] "Before final preprocess: {cleanedProps}"
-  let literalProps ← cleanedProps.mapM replaceIntOfNat
-  trace[querySMT.debug] "After preprocess: {literalProps}"
-  return literalProps
+  trace[querySMT.debug] "Before final preprocess: {props}"
+  let props ← props.mapM replaceIntOfNat
+  trace[querySMT.debug] "After preprocess: {props}"
+  return props
 
 def evalQuerySMTWithArgs (stxRef : Syntax) (facts : Syntax.TSepArray [`QuerySMT.querySMTStar, `term] ",")
   (configOptions : Syntax.TSepArray `QuerySMT.configOption ",") : TacticM Unit := withMainContext do

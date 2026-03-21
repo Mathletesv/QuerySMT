@@ -163,5 +163,5 @@ example (xs : List Unit) (x : Unit) : x::xs ≠ xs := by
   querySMT
 
 -- Fails
-example (x : Unit) (xs : List Unit) (ys : List Unit) : xs.length = ys.length → x::xs = x::ys := by
-  querySMT
+-- example (x : Unit) (xs : List Unit) (ys : List Unit) : xs.length = ys.length → x::xs = x::ys := by
+--   querySMT

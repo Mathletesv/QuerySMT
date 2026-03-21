@@ -122,4 +122,4 @@ example (f : Int → Int) (h1 : ∀ x y, f x = f y → x = y)
     (¬f sk0 + -Int.ofNat 1 * f (sk1 sk0) ≥ Int.ofNat 0 ∨ f sk0 = f (sk1 sk0)) ∨
       f sk0 + -Int.ofNat 1 * f (sk1 sk0) ≥ Int.ofNat 1 :=
     by grind
-  duper [h1, h2, negGoal, smtLemma0, smtLemma1, smtLemma2] [] 
+  duper [h1, h2, negGoal, smtLemma0, smtLemma1, smtLemma2] []

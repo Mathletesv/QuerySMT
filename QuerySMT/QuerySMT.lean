@@ -526,56 +526,23 @@ def incCounter : NatTacticM Unit := do
   let idx ← get
   set { idx with counter := idx.counter + 1 }
 
--- currently uses "bvN", can change naming
-def cleanName (old : Name) : NatTacticM Name := do
+-- Currently uses "bvN", can change naming
+-- Made partial to allow recursion to avoid shadowing
+partial def cleanName (old : Name) : NatTacticM Name := do
   if old.toString.startsWith "BOUND_VARIABLE" then
     let idx ← get
     set { idx with counter := idx.counter + 1 }
 
-    return (Name.mkSimple "bv").appendAfter s!"{idx.counter}"
+    let lctx ← getLCtx
+    let newName := (Name.mkSimple s!"bv{idx.counter}")
+    if lctx.usesUserName newName then
+      cleanName old
+    else
+      return newName
   else
     return old
 
--- Need to figure out which of these to actually update names for
--- Fixed by just checking for BOUND_VARIABLE but maybe still remove certain cases for efficiency
--- check for duplicates, problem if name already exists
 def renameBvars (e : Expr) : NatTacticM Expr := do
-  match e with
-  | .forallE name type body bi =>
-      let newName ← cleanName name
-      let newType ← renameBvars type
-      let newBody ← renameBvars body
-      return .forallE newName newType newBody bi
-
-  | .lam name type body bi =>
-      let newName ← cleanName name
-      let newType ← renameBvars type
-      let newBody ← renameBvars body
-      return .lam newName newType newBody bi
-
-  | .letE name type val body nonDep =>
-      let newName ← cleanName name
-      let newType ← renameBvars type
-      let newVal ← renameBvars val
-      let newBody ← renameBvars body
-      return .letE newName newType newVal newBody nonDep
-
-  | .app fn arg =>
-      let newFn ← renameBvars fn
-      let newArg ← renameBvars arg
-      return .app newFn newArg
-
-  | .mdata data expr =>
-      let newExpr ← renameBvars expr
-      return .mdata data newExpr
-
-  | .proj typeName idx expr =>
-      let newExpr ← renameBvars expr
-      return .proj typeName idx newExpr
-
-  | _ => return e
-
-def renameBvars2 (e : Expr) : NatTacticM Expr := do
   Lean.Core.transform e (pre := fun e => do
     match e with
     | .forallE name type body bi =>
@@ -583,21 +550,21 @@ def renameBvars2 (e : Expr) : NatTacticM Expr := do
       return .continue (some (.forallE newName type body bi))
 
     | .lam name type body bi =>
-        let newName ← cleanName name
-        return .continue (some (.lam newName type body bi))
+      let newName ← cleanName name
+      return .continue (some (.lam newName type body bi))
 
     | .letE name type val body nonDep =>
-        let newName ← cleanName name
-        return .continue (some (.letE newName type val body nonDep))
+      let newName ← cleanName name
+      return .continue (some (.letE newName type val body nonDep))
 
     | _ => return .continue
   )
 
 def renameHelper (prop: Expr) : TacticM Expr := do
-  let (prop, _) ← ((renameBvars2 prop).run { counter := 1})
+  let (prop, _) ← ((renameBvars prop).run { counter := 0})
   return prop
 
-def removeHaveStatementsBetter (e : Expr) : TacticM Expr := do
+def removeHaveStatements (e : Expr) : TacticM Expr := do
   Lean.Core.transform e (pre := fun e => do
     match e with
     | .letE _ _ val body _ =>
@@ -665,7 +632,7 @@ def preprocess (props: List Expr) : TacticM (List Expr) := do
   -- trace[querySMT.debug] "Before preprocess: {props}"
   let props ← props.mapM renameHelper
 
-  let props ← props.mapM removeHaveStatementsBetter
+  let props ← props.mapM removeHaveStatements
 
   let props ← if ← getFilterRedundanciesM then
     props.mapM removeRedundantHypotheses

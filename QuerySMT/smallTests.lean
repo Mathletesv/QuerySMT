@@ -64,8 +64,8 @@ set_option pp.explicit true in
 example (x y z : Int) : x ≤ y → y ≤ z → x ≤ z := by
   querySMT
 
-example (f : Int → Int) (bv1 : ∀ x y, f x = f y → x = y)
-(h2 : ∃ x, ∀ y, f x ≤ f y) : ∃ x, ∀ y, x ≠ y → f x < f y := by
+example (f : Int → Int) (bv0 : ∀ x y, f x = f y → x = y)
+(bv2 : ∃ x, ∀ y, f x ≤ f y) : ∃ x, ∀ y, x ≠ y → f x < f y := by
   querySMT
   -- WITH REDUNDANCIES REMOVED, small problem, it needed an extra lemma
   -- apply @Classical.byContradiction

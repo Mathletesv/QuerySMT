@@ -586,46 +586,39 @@ def removeRedundantHypotheses (e : Expr) : TacticM Expr := do
 
 def replaceIntOfNat (e : Expr) : TacticM Expr :=
   Lean.Core.transform e (pre := fun e => do
-    -- trace[querySMT.debug] "WOW: {e}"
     match e with
-    | .app (.app (.app (.app (.app (.app (.const ``HMul.hMul a) b) c) d) e) lhs) rhs =>
-      trace[querySMT.debug] "hello!: {lhs} AND {rhs}"
-      match lhs, rhs with
-      | .app (.app (.app (.const ``Neg.neg _) _) _) (.app (.const ``Int.ofNat _) (.lit (.natVal n))),
-        .app (.const ``Int.ofNat _) y =>
-        -- reconstruct -n * Int.ofNat y
-        let type := mkConst ``Int
-        let val := mkRawNatLit n
-        let cleanLit ← mkAppOptM ``OfNat.ofNat #[some type, some val, none]
-
-        let intY ← mkAppM ``Int.ofNat #[y]
-        let negLit ← mkAppM ``Neg.neg #[cleanLit]
-        let finalExpr ← mkAppM ``HMul.hMul #[negLit, intY]
-
-        return .done finalExpr
-      | _, _ =>
-        -- Any other multiplication
-        return .continue
-    -- | .app (.app (.app (.app (.app (.app (.const ``HMul.hMul _) _) _) _) _) _)
-    --   -- The right hand side (Int.ofNat y)
-    --   (.app (.const ``Int.ofNat _) x) =>
-    --   trace[querySMT.debug] "multiplied: {x}"
-    --   return .done e
-    -- | .app (.app (.app (.app (.app (.app (.const ``HMul.hMul _) _) _) _) _) _) x =>
-    --   trace[querySMT.debug] "NOOO: {x}"
-    --   return .done e
     | .app (.const ``Int.ofNat _) (.lit (.natVal n)) =>
       let type := mkConst ``Int
       let val := mkRawNatLit n
       let cleanLit ← mkAppOptM ``OfNat.ofNat #[some type, some val, none]
       return .done cleanLit
-    | .app (.const ``Int.ofNat _) x =>
-      let type := mkConst ``Int
-      try
-        let casted ← mkAppOptM ``Nat.cast #[some type, none, some x]
-        return .done casted
-      catch _ =>
-        return .continue
+    -- This is necessary only if the below removal is also added
+    -- | .app (.app (.app (.app (.app (.app (.const ``HMul.hMul _) _) _) _) _) lhs) rhs =>
+    --   trace[querySMT.debug] "hello!: {lhs} AND {rhs}"
+    --   match lhs, rhs with
+    --   | .app (.app (.app (.const ``Neg.neg _) _) _) (.app (.const ``Int.ofNat _) (.lit (.natVal n))),
+    --     .app (.const ``Int.ofNat _) y =>
+    --     -- reconstruct -n * Int.ofNat y
+    --     let type := mkConst ``Int
+    --     let val := mkRawNatLit n
+    --     let cleanLit ← mkAppOptM ``OfNat.ofNat #[some type, some val, none]
+
+    --     let intY ← mkAppM ``Int.ofNat #[y]
+    --     let negLit ← mkAppM ``Neg.neg #[cleanLit]
+    --     let finalExpr ← mkAppM ``HMul.hMul #[negLit, intY]
+
+    --     return .done finalExpr
+    --   | _, _ =>
+    --     -- Any other multiplication
+    --     return .continue
+    -- This somewhat works but causes pretty printing to fail for operators
+    -- | .app (.const ``Int.ofNat _) x =>
+    --   let type := mkConst ``Int
+    --   try
+    --     let casted ← mkAppOptM ``Nat.cast #[some type, none, some x]
+    --     return .done casted
+    --   catch _ =>
+    --     return .continue
     | _ => return .continue)
 
 def preprocess (props: List Expr) : TacticM (List Expr) := do
@@ -639,9 +632,9 @@ def preprocess (props: List Expr) : TacticM (List Expr) := do
   else
     pure props
 
-  trace[querySMT.debug] "Before final preprocess: {props}"
+  -- trace[querySMT.debug] "Before final preprocess: {props}"
   let props ← props.mapM replaceIntOfNat
-  trace[querySMT.debug] "After preprocess: {props}"
+  -- trace[querySMT.debug] "After preprocess: {props}"
   return props
 
 def evalQuerySMTWithArgs (stxRef : Syntax) (facts : Syntax.TSepArray [`QuerySMT.querySMTStar, `term] ",")

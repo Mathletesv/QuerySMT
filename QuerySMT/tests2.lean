@@ -72,13 +72,10 @@ example (f g : Int → Int) (h1 : ∀ x : Int, f (g x) = x) : (∀ x y : Int, x 
   querySMT
 
 -- Simple Nat Inequalities
-set_option pp.all true in
 example (x y z : Nat) : x < y → y < z → x < z := by
   querySMT
 
-example (x y z : Nat) : x < y → y < z → x < z := by
-  querySMT
-
+-- This is an option for removing Int.ofNat in many places but I believe it to be worse
 example (x y z : Nat) : x < y → y < z → x < z := by
   intros h0 h1
   apply @Classical.byContradiction
@@ -88,38 +85,6 @@ example (x y z : Nat) : x < y → y < z → x < z := by
   have smtLemma2 : ¬LT.lt (α := ℤ) ↑x ↑z → ↑x + -1 * Int.ofNat z ≥ 0 := by grind
   have smtLemma3 : ↑x + -1 * Int.ofNat z ≥ 0 ∧ ↑z + -1 * Int.ofNat y ≥ 1 → ↑x + -1 * Int.ofNat y ≥ 0 := by grind
   duper [h0, h1, negGoal, smtLemma0, smtLemma1, smtLemma2, smtLemma3] [Int.ofNat_lt]
-
--- Funny bug that worked
--- example (x y z : Nat) : x < y → y < z → x < z := by
---   intros h0 h1
---   apply @Classical.byContradiction
---   intro negGoal
---   have smtLemma0 : LT.lt (α := ℤ) ↑x ↑y → ¬↑x + 1 * Int.ofNat y ≥ 0 := by grind
---   duper [h0, smtLemma0] [Int.natCast_nonneg, Int.ofNat_lt]
-
-set_option pp.all true in
-example (x y z : Nat) : x < y → y < z → x < z := by
-  intros h0 h1
-  apply @Classical.byContradiction
-  intro negGoal
-  have smtLemma0 : x < y → ¬x + -Int.ofNat 1 * Int.ofNat y ≥ 0 := by grind
-  have smtLemma4 : x < y → ¬x + -1 * Int.ofNat y ≥ 0 := by grind
-  have smtLemma1 : Int.ofNat y < Int.ofNat z → Int.ofNat z + -1 * Int.ofNat y ≥ 1 := by grind
-  have smtLemma2 : ¬Int.ofNat x < Int.ofNat z → Int.ofNat x + -1 * Int.ofNat z ≥ 0 := by grind
-  have smtLemma3 :
-    Int.ofNat x + -1 * Int.ofNat z ≥ 0 ∧ Int.ofNat z + -1 * Int.ofNat y ≥ 1 → Int.ofNat x + -1 * Int.ofNat y ≥ 0 := by
-    grind
-  duper [h0, h1, negGoal, smtLemma0, smtLemma1, smtLemma2, smtLemma3] [Int.ofNat_lt]
-
--- example (x y z : Nat) : x < y → y < z → x < z := by
---   intros h0 h1
---   apply @Classical.byContradiction
---   intro negGoal
---   have smtLemma0 : LT.lt (α := ℤ) ↑x ↑y → ¬↑x + -1 * ↑y ≥ 0 := by grind
---   have smtLemma1 : LT.lt (α := ℤ) ↑y ↑z → ↑z + -1 * ↑y ≥ 1 := by grind
---   have smtLemma2 : ¬LT.lt (α := ℤ) ↑x ↑z → ↑x + -1 * ↑z ≥ 0 := by grind
---   have smtLemma3 : ↑x + -1 * ↑z ≥ 0 ∧ ↑z + -1 * ↑y ≥ 1 → ↑x + -1 * ↑y ≥ 0 := by grind
---   duper [h0, h1, negGoal, smtLemma0, smtLemma1, smtLemma2, smtLemma3] [Int.ofNat_lt]
 
 example (x y z : Nat) : x < y → z < x → ¬z = y := by
   querySMT

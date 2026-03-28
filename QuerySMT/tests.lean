@@ -24,9 +24,6 @@ set_option duper.throwPortfolioErrors false
 set_option duper.collectDatatypes true
 set_option auto.getHints.failOnParseError true
 
-set_option querySMT.filterHints false
-set_option querySMT.filterRedundancies false
-
 example (x y z : Int) : x ≤ y → y ≤ z → x ≤ z := by
   querySMT
 
@@ -441,3 +438,7 @@ example (f : Int → Int) (min max : Int)
 
 example (m n : ℤ) : (m - n).gcd m = n.gcd m := by
   querySMT [Int.gcd_mul_right_sub_left]
+
+example (f : ℤ → ℤ) (h1 : ∀ x y, f x = f y → x = y)
+  (h2 : ∃ x, ∀ y, f x ≤ f y) : ∃ x, ∀ y, x ≠ y → f x < f y := by
+  querySMT

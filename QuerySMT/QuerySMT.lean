@@ -519,6 +519,7 @@ def isAdditionalFact : CoreM (Term → Bool) := do
 
 abbrev NatTacticM := StateRefT Nat TacticM
 
+/-- A helper function for `hintPostprocessing` -/
 partial def cleanName (old : Name) : NatTacticM Name := do
   if old.toString.startsWith "BOUND_VARIABLE" then
     let idx ← get
@@ -532,6 +533,7 @@ partial def cleanName (old : Name) : NatTacticM Name := do
   else
     return old
 
+/-- A helper function for `hintPostprocessing` -/
 def renameBvars (e : Expr) : NatTacticM Expr := do
   Lean.Core.transform e (pre := fun e => do
     match e with
@@ -546,10 +548,12 @@ def renameBvars (e : Expr) : NatTacticM Expr := do
       return .continue (some (.letE newName type val body nonDep))
     | _ => return .continue)
 
+/-- A helper function for `hintPostprocessing` -/
 def renameHelper (prop: Expr) : TacticM Expr := do
   let (prop, _) ← ((renameBvars prop).run 0)
   return prop
 
+/-- A helper function for `hintPostprocessing` -/
 def removeHaveStatements (e : Expr) : TacticM Expr := do
   Lean.Core.transform e (pre := fun e => do
     match e with
@@ -557,6 +561,7 @@ def removeHaveStatements (e : Expr) : TacticM Expr := do
         return .visit (body.instantiate1 val)
     | _ => return .continue)
 
+/-- A helper function for `hintPostprocessing` -/
 def removeRedundantHypotheses (e : Expr) : TacticM Expr := do
   match e with
   | .forallE name type body bi =>
@@ -568,6 +573,7 @@ def removeRedundantHypotheses (e : Expr) : TacticM Expr := do
     if remove then return body else return .forallE name type body bi
   | _ => return e
 
+/-- A helper function for `hintPostprocessing` -/
 def replaceIntOfNat (e : Expr) : TacticM Expr :=
   Lean.Core.transform e (pre := fun e => do
     match e with
@@ -578,14 +584,17 @@ def replaceIntOfNat (e : Expr) : TacticM Expr :=
       return .done cleanLit
     | _ => return .continue)
 
+/-- A function which postprocesses hints output by `cvc5` to improve readability without
+    substantively changing the hints themselves. -/
 def hintPostprocessing (props: List Expr) : TacticM (List Expr) := do
   trace[querySMT.debug] "Before hint postprocessing: {props}"
   let props ← props.mapM renameHelper
   let props ← props.mapM removeHaveStatements
-  let props ← if ← getFilterRedundanciesM then
-    props.mapM removeRedundantHypotheses
-  else
-    pure props
+  let props ←
+    if ← getFilterRedundanciesM then
+      props.mapM removeRedundantHypotheses
+    else
+      pure props
   let props ← props.mapM replaceIntOfNat
   trace[querySMT.debug] "After hint postprocessing: {props}"
   return props
@@ -678,7 +687,7 @@ def evalQuerySMTWithArgs (stxRef : Syntax) (facts : Syntax.TSepArray [`QuerySMT.
         let (unsatCoreDerivLeafStrings, selectorInfos, allSMTLemmas) := SMTHints
         let (preprocessFacts, theoryLemmas, _instantiations, computationLemmas, polynomialLemmas, rewriteFacts) := allSMTLemmas
 
-        -- Preprocessing to make output cleaner
+        -- Postprocessing to make output cleaner
         let preprocessFacts ← hintPostprocessing preprocessFacts
         let theoryLemmas ← hintPostprocessing theoryLemmas
         let _instantiations ← hintPostprocessing _instantiations

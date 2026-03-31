@@ -18,7 +18,7 @@
    "rev": "e4f158b4142d5ccf9f1327dd9b77c261ac9ae85f",
    "name": "Duper",
    "manifestFile": "lake-manifest.json",
-   "inputRev": "querySMT",
+   "inputRev": "e4f158b4142d5ccf9f1327dd9b77c261ac9ae85f",
    "inherited": false,
    "configFile": "lakefile.lean"},
   {"url": "https://github.com/leanprover-community/mathlib4",

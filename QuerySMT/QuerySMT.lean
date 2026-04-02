@@ -1,5 +1,6 @@
 import Duper
 import QuerySMT.SkolemizeAll
+import Mathlib.Order.Defs.LinearOrder
 
 open Lean Meta Auto Elab Tactic Parser Tactic Duper
 
@@ -463,7 +464,7 @@ def getAdditionalFacts : CoreM (Array Term) := do
       (← `(term| $(mkIdent ``Int.natAbs_eq))),
       (← `(term| $(mkIdent ``Int.natAbs_eq_natAbs_iff))),
       (← `(term| $(mkIdent ``Int.ofNat_le))), (← `(term| $(mkIdent ``Int.ofNat_lt))),
-      (← `(term| $(mkIdent ``Int.ofNat_eq_coe))), (← `(term| $(mkIdent ``Int.zero_sub))),
+      (← `(term| $(mkIdent ``Int.ofNat_eq_natCast))), (← `(term| $(mkIdent ``Int.zero_sub))),
       (← `(term| $(mkIdent ``Int.natAbs_of_nonneg))), (← `(term| $(mkIdent ``Int.ofNat_natAbs_of_nonpos))),
       (← `(term| $(mkIdent ``Int.nonpos_of_neg_nonneg))), (← `(term| $(mkIdent ``Int.nonneg_of_neg_nonpos))),
       (← `(term| $(mkIdent ``Int.natCast_add))), (← `(term| $(mkIdent ``Int.natCast_mul))),
@@ -484,7 +485,7 @@ def getAdditionalFacts : CoreM (Array Term) := do
       (← `(term| $(mkIdent ``Int.natAbs_eq))),
       (← `(term| $(mkIdent ``Int.natAbs_eq_natAbs_iff))),
       (← `(term| $(mkIdent ``Int.ofNat_le))), (← `(term| $(mkIdent ``Int.ofNat_lt))),
-      (← `(term| $(mkIdent ``Int.ofNat_eq_coe))), (← `(term| $(mkIdent ``Int.zero_sub))),
+      (← `(term| $(mkIdent ``Int.ofNat_eq_natCast))), (← `(term| $(mkIdent ``Int.zero_sub))),
       (← `(term| $(mkIdent ``Int.natAbs_of_nonneg))), (← `(term| $(mkIdent ``Int.ofNat_natAbs_of_nonpos))),
       (← `(term| $(mkIdent ``Int.nonpos_of_neg_nonneg))), (← `(term| $(mkIdent ``Int.nonneg_of_neg_nonpos))),
       (← `(term| $(mkIdent ``Int.natCast_add))), (← `(term| $(mkIdent ``Int.natCast_mul))),
@@ -500,7 +501,7 @@ def getAdditionalFacts : CoreM (Array Term) := do
       (← `(term| $(mkIdent ``lt_iff_not_ge))),
       (← `(term| $(mkIdent ``Int.ofNat_inj))), (← `(term| $(mkIdent ``Int.natAbs_natCast))),
       (← `(term| $(mkIdent ``Int.ofNat_le))), (← `(term| $(mkIdent ``Int.ofNat_lt))),
-      (← `(term| $(mkIdent ``Int.ofNat_eq_coe))), (← `(term| $(mkIdent ``Int.zero_sub))),
+      (← `(term| $(mkIdent ``Int.ofNat_eq_natCast))), (← `(term| $(mkIdent ``Int.zero_sub))),
       (← `(term| $(mkIdent ``Int.natCast_add))), (← `(term| $(mkIdent ``Int.natCast_mul))),
       (← `(term| $(mkIdent ``Int.natAbs_mul))),
       (← `(term| $(mkIdent ``Int.natCast_one))), (← `(term| $(mkIdent ``Int.natCast_zero))),
